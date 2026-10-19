@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番茄專注 Tomato Focus</title>
+<style>
+  :root {
+    --accent: #e5533d;
+    --accent-soft: #fdecea;
+    --bg: #fff7f5;
+    --card: #ffffff;
+    --text: #2b2b2b;
+    --muted: #8a8a8a;
+    --line: #eee;
+    --radius: 18px;
+  }
+  body[data-mode="short"] { --accent: #2a9d8f; --accent-soft: #e3f4f1; --bg: #f3fbf9; }
+  body[data-mode="long"]  { --accent: #3d6fa8; --accent-soft: #e6eef8; --bg: #f4f7fc; }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    transition: background .5s;
+    min-height: 100vh;
+  }
+  header {
+    max-width: 960px; margin: 0 auto; padding: 18px 16px 6px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.3rem; margin: 0; color: var(--accent); transition: color .5s; }
+  header h1 span { font-size: .85rem; color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .icon-btn {
+    border: none; background: var(--card); width: 40px; height: 40px; border-radius: 50%;
+    cursor: pointer; font-size: 1.1rem; box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+  .icon-btn:hover { background: var(--accent-soft); }
+
+  main {
+    max-width: 960px; margin: 0 auto; padding: 8px 16px 40px;
+    display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr);
+  }
+  @media (max-width: 480px) {
+    .controls { gap: 8px; }
+    .btn { padding: 10px 12px; font-size: .92rem; }
+    .btn.primary { padding: 13px 28px; }
+    .card { padding: 16px; }
+  }
+  @media (min-width: 820px) {
+    main { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+    .timer-card { grid-row: span 2; }
+  }
+  .card {
+    background: var(--card); border-radius: var(--radius); padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.05);
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 14px; display: flex; justify-content: space-between; align-items: center; }
+
+  /* ---- Timer ---- */
+  .tabs { display: flex; gap: 6px; background: var(--accent-soft); padding: 5px; border-radius: 999px; transition: background .5s; }
+  .tabs button {
+    flex: 1; border: none; background: transparent; padding: 9px 4px; border-radius: 999px;
+    font-size: .92rem; cursor: pointer; color: var(--text); font-family: inherit;
+  }
+  .tabs button.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+  .ring-wrap { position: relative; width: min(300px, 78vw); aspect-ratio: 1; margin: 26px auto 10px; }
+  .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-bg { stroke: var(--accent-soft); }
+  .ring-fg { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset .3s linear, stroke .5s; }
+  .ring-center {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 0 30px;
+  }
+  #time { font-size: clamp(3rem, 14vw, 4.4rem); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+  #modeLabel { color: var(--muted); font-size: .95rem; }
+  #currentTask {
+    margin-top: 6px; font-size: .88rem; color: var(--accent); max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .dots { display: flex; justify-content: center; gap: 8px; margin: 4px 0 18px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--accent-soft); border: 2px solid var(--accent); transition: .3s; }
+  .dot.filled { background: var(--accent); }
+
+  .controls { display: flex; justify-content: center; align-items: center; gap: 14px; }
+  .btn {
+    border: none; cursor: pointer; font-family: inherit; font-size: 1rem; border-radius: 999px;
+    padding: 10px 18px; background: var(--accent-soft); color: var(--text); transition: transform .1s, background .3s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(.95); }
+  .btn.primary {
+    background: var(--accent); color: #fff; font-size: 1.2rem; font-weight: 700;
+    padding: 14px 40px; box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .hint { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 14px; }
+  kbd { background: #f1f1f1; border-radius: 4px; padding: 1px 6px; font-size: .75rem; border: 1px solid #ddd; }
+
+  /* ---- Todos ---- */
+  .add-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .add-row input[type=text] {
+    flex: 1; min-width: 0; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; font-size: .95rem; font-family: inherit;
+  }
+  .add-row input:focus { outline: none; border-color: var(--accent); }
+  .add-row select { border: 1.5px solid var(--line); border-radius: 10px; padding: 0 6px; font-family: inherit; }
+  .todo-list { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; }
+  .todo {
+    display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px;
+    border: 1.5px solid transparent; cursor: pointer; transition: background .2s;
+  }
+  .todo:hover { background: #fafafa; }
+  .todo.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .todo input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .todo .txt { flex: 1; word-break: break-word; }
+  .todo.done .txt { text-decoration: line-through; color: var(--muted); }
+  .todo .pomo { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+  .todo .del { border: none; background: none; color: #bbb; cursor: pointer; font-size: 1rem; padding: 2px 4px; }
+  .todo .del:hover { color: #e5533d; }
+  .empty { color: var(--muted); text-align: center; padding: 18px 0; font-size: .9rem; }
+  .link-btn { border: none; background: none; color: var(--muted); font-size: .8rem; cursor: pointer; font-family: inherit; }
+  .link-btn:hover { color: var(--accent); }
+
+  /* ---- Stats ---- */
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+  .stat { background: var(--accent-soft); border-radius: 12px; padding: 12px 6px; text-align: center; transition: background .5s; }
+  .stat b { display: block; font-size: 1.5rem; color: var(--accent); }
+  .stat small { color: var(--muted); font-size: .78rem; }
+  .chart { display: flex; align-items: flex-end; gap: 8px; height: 130px; padding-top: 18px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+  .bar {
+    width: 100%; max-width: 34px; background: var(--accent); border-radius: 6px 6px 2px 2px;
+    position: relative; min-height: 3px; transition: height .5s; opacity: .85;
+  }
+  .bar.today { opacity: 1; }
+  .bar span { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: .72rem; color: var(--muted); }
+  .bar-col small { margin-top: 6px; font-size: .72rem; color: var(--muted); }
+
+  /* ---- Music ---- */
+  .music-card { grid-column: 1 / -1; }
+  .music-body { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 680px) { .music-body { grid-template-columns: 300px minmax(0, 1fr); } }
+  .video-box {
+    position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden;
+    background: var(--accent-soft); transition: background .5s;
+  }
+  .video-box iframe, .video-box #ytPlayer { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video-placeholder {
+    position: absolute; inset: 0; display: flex; flex-direction: column; gap: 6px;
+    align-items: center; justify-content: center; color: var(--muted); font-size: .85rem; text-align: center; padding: 10px;
+  }
+  .video-placeholder b { font-size: 2rem; }
+  .now-playing { margin: 10px 0 0; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .now-playing b { color: var(--accent); }
+  .music-controls { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .music-controls .btn { padding: 8px 14px; }
+  .music-controls input[type=range] { flex: 1; min-width: 90px; accent-color: var(--accent); }
+  .song-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .song {
+    display: flex; align-items: center; gap: 4px; border: 1.5px solid var(--line); border-radius: 999px;
+    padding: 6px 6px 6px 14px; cursor: pointer; font-size: .9rem; background: #fff; max-width: 100%;
+  }
+  .song span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song:hover { border-color: var(--accent); }
+  .song.playing { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .song.error { opacity: .45; text-decoration: line-through; }
+  .song button { border: none; background: none; color: inherit; opacity: .5; cursor: pointer; font-size: .85rem; padding: 0 4px; }
+  .song button:hover { opacity: 1; }
+  .music-opt { display: flex; align-items: center; gap: 8px; font-size: .9rem; margin: 4px 0 12px; cursor: pointer; }
+  .music-opt input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
+    align-items: center; justify-content: center; padding: 16px; z-index: 10;
+  }
+  .modal-bg.open { display: flex; }
+  .modal { background: #fff; border-radius: var(--radius); padding: 22px; width: 100%; max-width: 380px; }
+  .modal h3 { margin: 0 0 16px; }
+  .field { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
+  .field input[type=number] { width: 80px; padding: 7px; border: 1.5px solid var(--line); border-radius: 8px; font-size: .95rem; text-align: center; }
+  .field input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+  /* ---- Toast ---- */
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 120px);
+    background: #2b2b2b; color: #fff; padding: 12px 20px; border-radius: 12px;
+    transition: transform .35s, opacity .35s; z-index: 20; max-width: calc(100% - 32px); text-align: center;
+    opacity: 0; visibility: hidden;
+  }
+  #toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
+</style>
+</head>
+<body data-mode="focus">
+
+<header>
+  <h1>🍅 番茄專注<span>Tomato Focus</span></h1>
+  <div style="display:flex; gap:8px">
+    <button class="icon-btn" id="notifyBtn" title="開啟桌面通知">🔔</button>
+    <button class="icon-btn" id="settingsBtn" title="設定">⚙️</button>
+  </div>
+</header>
+
+<main>
+  <!-- 計時器 -->
+  <section class="card timer-card">
+    <div class="tabs" id="tabs">
+      <button data-mode="focus" class="active">專注</button>
+      <button data-mode="short">短休息</button>
+      <button data-mode="long">長休息</button>
+    </div>
+
+    <div class="ring-wrap">
+      <svg viewBox="0 0 120 120">
+        <circle class="ring-bg" cx="60" cy="60" r="54" fill="none" stroke-width="7"/>
+        <circle class="ring-fg" id="ring" cx="60" cy="60" r="54" fill="none" stroke-width="7"/>
+      </svg>
+      <div class="ring-center">
+        <div id="time">25:00</div>
+        <div id="modeLabel">準備開始專注</div>
+        <div id="currentTask"></div>
+      </div>
+    </div>
+
+    <div class="dots" id="dots"></div>
+
+    <div class="controls">
+      <button class="btn" id="resetBtn" title="重設 (R)">↺ 重設</button>
+      <button class="btn primary" id="startBtn">開始</button>
+      <button class="btn" id="skipBtn" title="跳過 (S)">跳過 ⏭</button>
+    </div>
+    <p class="hint">快捷鍵：<kbd>空白鍵</kbd> 開始/暫停　<kbd>R</kbd> 重設　<kbd>S</kbd> 跳過　<kbd>M</kbd> 音樂</p>
+  </section>
+
+  <!-- 待辦 -->
+  <section class="card">
+    <h2>📝 今天要讀的 <button class="link-btn" id="clearDone">清除已完成</button></h2>
+    <form class="add-row" id="addForm">
+      <input type="text" id="todoInput" placeholder="例如：微積分第三章習題" maxlength="60">
+      <select id="estInput" title="預估番茄數">
+        <option value="1">🍅×1</option><option value="2">🍅×2</option><option value="3">🍅×3</option>
+        <option value="4">🍅×4</option><option value="5">🍅×5</option><option value="6">🍅×6</option>
+      </select>
+      <button class="btn primary" style="padding:8px 16px; font-size:1rem" type="submit">＋</button>
+    </form>
+    <ul class="todo-list" id="todoList"></ul>
+  </section>
+
+  <!-- 統計 -->
+  <section class="card">
+    <h2>📊 專注統計 <button class="link-btn" id="clearStats">重置統計</button></h2>
+    <div class="stat-row">
+      <div class="stat"><b id="todayCount">0</b><small>今日番茄</small></div>
+      <div class="stat"><b id="todayMin">0</b><small>今日分鐘</small></div>
+      <div class="stat"><b id="streak">0</b><small>連續天數</small></div>
+    </div>
+    <div class="chart" id="chart"></div>
+  </section>
+
+  <!-- 背景音樂 -->
+  <section class="card music-card">
+    <h2>🎵 讀書背景音樂 <button class="link-btn" id="resetSongs">恢復預設歌單</button></h2>
+    <div class="music-body">
+      <div>
+        <div class="video-box">
+          <div class="video-placeholder" id="videoPlaceholder"><b>🎧</b>點一首歌開始播放<br>（音樂來自 YouTube）</div>
+          <div id="ytPlayer"></div>
+        </div>
+        <p class="now-playing" id="nowPlaying">尚未播放</p>
+        <div class="music-controls">
+          <button class="btn" id="prevSong" title="上一首">⏮</button>
+          <button class="btn primary" style="padding:8px 20px; font-size:1rem" id="playSong" title="播放/暫停 (M)">▶</button>
+          <button class="btn" id="nextSong" title="下一首">⏭</button>
+          <span title="音量">🔈</span><input type="range" id="volume" min="0" max="100" aria-label="音量">
+        </div>
+      </div>
+      <div>
+        <label class="music-opt"><input type="checkbox" id="musicAuto">專注時自動播放、休息/暫停時自動停止</label>
+        <ul class="song-list" id="songList"></ul>
+        <form class="add-row" id="addSong">
+          <input type="text" id="songInput" placeholder="貼上 YouTube 連結加入歌單">
+          <button class="btn primary" style="padding:8px 16px; font-size:1rem" type="submit">＋</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 設定視窗 -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3>⚙️ 設定</h3>
+    <div class="field"><label for="setFocus">專注時間（分鐘）</label><input type="number" id="setFocus" min="1" max="120"></div>
+    <div class="field"><label for="setShort">短休息（分鐘）</label><input type="number" id="setShort" min="1" max="60"></div>
+    <div class="field"><label for="setLong">長休息（分鐘）</label><input type="number" id="setLong" min="1" max="60"></div>
+    <div class="field"><label for="setInterval">幾顆番茄後長休息</label><input type="number" id="setInterval" min="2" max="10"></div>
+    <div class="field"><label for="setAuto">自動開始下一段</label><input type="checkbox" id="setAuto"></div>
+    <div class="field"><label for="setSound">結束提示音</label><input type="checkbox" id="setSound"></div>
+    <div class="actions">
+      <button class="btn" id="cancelSet">取消</button>
+      <button class="btn primary" style="padding:10px 24px; font-size:1rem" id="saveSet">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ========== 資料儲存（localStorage，失敗時不影響使用） ========== */
+const store = {
+  get(key, fallback) {
+    try { const v = localStorage.getItem('tomato_' + key); return v ? JSON.parse(v) : fallback; }
+    catch (e) { return fallback; }
+  },
+  set(key, value) {
+    try { localStorage.setItem('tomato_' + key, JSON.stringify(value)); } catch (e) {}
+  }
+};
+
+const DEFAULT_SETTINGS = { focus: 25, short: 5, long: 15, interval: 4, auto: false, sound: true };
+let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
+let todos = store.get('todos', []);
+let stats = store.get('stats', {});          // { "2026-10-19": { count: 3, minutes: 75 } }
+let selectedId = store.get('selected', null);
+let roundCount = store.get('round', 0);      // 本輪已完成的專注數（用於判斷長休息）
+
+const MODE_INFO = {
+  focus: { label: '專注中', idle: '準備開始專注', key: 'focus' },
+  short: { label: '短休息中', idle: '休息一下吧', key: 'short' },
+  long:  { label: '長休息中', idle: '好好放鬆一下', key: 'long' }
+};
+
+/* ========== 計時器狀態 ========== */
+let mode = 'focus';
+let total = settings.focus * 60 * 1000;   // 本段總時間 (ms)
+let remaining = total;                     // 剩餘時間 (ms)
+let running = false;
+let endAt = 0;                             // 用「結束時間戳」計算，切換分頁也不會跑慢
+let timerId = null;
+
+const $ = id => document.getElementById(id);
+const ring = $('ring');
+const CIRC = 2 * Math.PI * 54;
+ring.style.strokeDasharray = CIRC;
+
+function fmt(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+
+function render() {
+  $('time').textContent = fmt(remaining);
+  ring.style.strokeDashoffset = CIRC * (1 - remaining / total);
+  $('modeLabel').textContent = running ? MODE_INFO[mode].label : (remaining < total ? '已暫停' : MODE_INFO[mode].idle);
+  $('startBtn').textContent = running ? '暫停' : (remaining < total ? '繼續' : '開始');
+  document.title = (running ? '⏱ ' : '') + fmt(remaining) + ' · ' + (mode === 'focus' ? '專注' : '休息') + ' | 番茄專注';
+  document.body.dataset.mode = mode;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+
+  const t = todos.find(t => t.id === selectedId && !t.done);
+  $('currentTask').textContent = t ? '🎯 ' + t.text : (mode === 'focus' ? '點選待辦，設定專注目標' : '');
+
+  // 進度點：顯示本輪距離長休息還有幾顆
+  const dots = $('dots'); dots.innerHTML = '';
+  const filled = roundCount % settings.interval;
+  const shown = (mode === 'long' && filled === 0 && roundCount > 0) ? settings.interval : filled;
+  for (let i = 0; i < settings.interval; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < shown ? ' filled' : '');
+    dots.appendChild(d);
+  }
+}
+
+function tick() {
+  remaining = endAt - Date.now();
+  if (remaining <= 0) { remaining = 0; render(); complete(); return; }
+  render();
+}
+
+function start() {
+  if (running) return;
+  unlockAudio();
+  running = true;
+  endAt = Date.now() + remaining;
+  timerId = setInterval(tick, 250);
+  render();
+  syncMusic();
+}
+function pause() {
+  if (!running) return;
+  running = false;
+  clearInterval(timerId);
+  remaining = Math.max(0, endAt - Date.now());
+  render();
+  syncMusic();
+}
+function toggle() { running ? pause() : start(); }
+
+function setMode(m, autoStart = false) {
+  pause();
+  mode = m;
+  total = settings[m] * 60 * 1000;
+  remaining = total;
+  render();
+  if (autoStart) start(); else syncMusic();
+}
+
+function reset() { setMode(mode); }
+
+/* 一段時間結束 */
+function complete() {
+  clearInterval(timerId);
+  running = false;
+  let next, msg;
+  if (mode === 'focus') {
+    recordFocus(settings.focus);
+    roundCount++; store.set('round', roundCount);
+    const t = todos.find(t => t.id === selectedId);
+    if (t) { t.pomos = (t.pomos || 0) + 1; saveTodos(); }
+    next = (roundCount % settings.interval === 0) ? 'long' : 'short';
+    msg = next === 'long' ? `🎉 完成 ${settings.interval} 顆番茄！來個長休息` : '🍅 完成一顆番茄！休息一下';
+  } else {
+    next = 'focus';
+    msg = '💪 休息結束，回來專注吧！';
+  }
+  beep(mode === 'focus' ? 'done' : 'back');
+  notify(msg);
+  toast(msg);
+  setMode(next, settings.auto);
+}
+
+function skip() {
+  if (mode === 'focus') {
+    if (!confirm('跳過這段專注？（不會記入統計）')) return;
+    setMode('short');
+  } else {
+    setMode('focus');
+  }
+}
+
+/* ========== 統計 ========== */
+function dateKey(d = new Date()) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function recordFocus(minutes) {
+  const k = dateKey();
+  stats[k] = stats[k] || { count: 0, minutes: 0 };
+  stats[k].count++; stats[k].minutes += minutes;
+  store.set('stats', stats);
+  renderStats();
+}
+function renderStats() {
+  const today = stats[dateKey()] || { count: 0, minutes: 0 };
+  $('todayCount').textContent = today.count;
+  $('todayMin').textContent = today.minutes;
+
+  // 連續天數：從今天（今天還沒讀就從昨天）往回算
+  let streak = 0; const d = new Date();
+  if (!stats[dateKey(d)]) d.setDate(d.getDate() - 1);
+  while (stats[dateKey(d)] && stats[dateKey(d)].count > 0) { streak++; d.setDate(d.getDate() - 1); }
+  $('streak').textContent = streak;
+
+  // 近 7 天長條圖
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const x = new Date(); x.setDate(x.getDate() - i); days.push(x); }
+  const vals = days.map(x => (stats[dateKey(x)] || {}).count || 0);
+  const max = Math.max(4, ...vals);
+  if (vals.every(v => v === 0)) { $('chart').innerHTML = '<p class="empty" style="width:100%;align-self:center">完成第一顆番茄後，這裡會出現近 7 天的長條圖 📈</p>'; return; }
+  const W = ['日', '一', '二', '三', '四', '五', '六'];
+  $('chart').innerHTML = days.map((x, i) => `
+    <div class="bar-col">
+      <div class="bar ${i === 6 ? 'today' : ''}" style="height:${vals[i] / max * 100}%">${vals[i] ? `<span>${vals[i]}</span>` : ''}</div>
+      <small>${i === 6 ? '今天' : W[x.getDay()]}</small>
+    </div>`).join('');
+}
+
+/* ========== 待辦清單 ========== */
+function saveTodos() { store.set('todos', todos); store.set('selected', selectedId); renderTodos(); render(); }
+
+function renderTodos() {
+  const ul = $('todoList');
+  if (!todos.length) { ul.innerHTML = '<li class="empty">還沒有待辦，先寫下今天要讀什麼吧！</li>'; return; }
+  ul.innerHTML = '';
+  todos.forEach(t => {
+    const li = document.createElement('li');
+    li.className = 'todo' + (t.done ? ' done' : '') + (t.id === selectedId ? ' selected' : '');
+    li.innerHTML = `
+      <input type="checkbox" ${t.done ? 'checked' : ''} aria-label="完成">
+      <span class="txt"></span>
+      <span class="pomo">🍅 ${t.pomos || 0}/${t.est}</span>
+      <button class="del" title="刪除">✕</button>`;
+    li.querySelector('.txt').textContent = t.text;   // 用 textContent 避免 HTML 注入
+    li.onclick = e => {
+      if (e.target.matches('input, .del')) return;
+      if (t.done) return;
+      selectedId = selectedId === t.id ? null : t.id;
+      saveTodos();
+    };
+    li.querySelector('input').onchange = e => {
+      t.done = e.target.checked;
+      if (t.done && selectedId === t.id) selectedId = null;
+      if (t.done) toast('✅ 完成「' + t.text + '」');
+      saveTodos();
+    };
+    li.querySelector('.del').onclick = () => {
+      todos = todos.filter(x => x.id !== t.id);
+      if (selectedId === t.id) selectedId = null;
+      saveTodos();
+    };
+    ul.appendChild(li);
+  });
+}
+
+$('addForm').onsubmit = e => {
+  e.preventDefault();
+  const text = $('todoInput').value.trim();
+  if (!text) { $('todoInput').focus(); return; }
+  const t = { id: Date.now(), text, est: +$('estInput').value, pomos: 0, done: false };
+  todos.push(t);
+  if (!selectedId) selectedId = t.id;   // 第一個待辦自動設為目前目標
+  $('todoInput').value = '';
+  saveTodos();
+};
+$('clearDone').onclick = () => { todos = todos.filter(t => !t.done); saveTodos(); };
+$('clearStats').onclick = () => {
+  if (!confirm('確定要清除所有統計紀錄嗎？')) return;
+  stats = {}; roundCount = 0; store.set('stats', stats); store.set('round', 0);
+  renderStats(); render();
+};
+
+/* ========== 聲音（Web Audio，不需要音檔） ========== */
+let audioCtx = null;
+function unlockAudio() {
+  try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
+}
+function beep(type) {
+  if (!settings.sound || !audioCtx) return;
+  const notes = type === 'done' ? [660, 880, 1046] : [523, 523, 659];
+  notes.forEach((f, i) => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    const t0 = audioCtx.currentTime + i * 0.22;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + 0.21);
+  });
+}
+
+/* ========== 通知與提示 ========== */
+function notify(msg) {
+  try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification('番茄專注', { body: msg }); } catch (e) {}
+}
+$('notifyBtn').onclick = async () => {
+  if (!('Notification' in window)) return toast('這個瀏覽器不支援通知');
+  const p = await Notification.requestPermission();
+  toast(p === 'granted' ? '🔔 已開啟通知，切到別的分頁也會提醒你' : '通知未開啟');
+};
+let toastTimer;
+function toast(msg) {
+  const el = $('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+/* ========== 設定 ========== */
+function openSettings() {
+  $('setFocus').value = settings.focus; $('setShort').value = settings.short;
+  $('setLong').value = settings.long; $('setInterval').value = settings.interval;
+  $('setAuto').checked = settings.auto; $('setSound').checked = settings.sound;
+  $('modalBg').classList.add('open');
+}
+function closeSettings() { $('modalBg').classList.remove('open'); }
+$('settingsBtn').onclick = openSettings;
+$('cancelSet').onclick = closeSettings;
+$('modalBg').onclick = e => { if (e.target.id === 'modalBg') closeSettings(); };
+$('saveSet').onclick = () => {
+  const clamp = (v, lo, hi, d) => { v = parseInt(v, 10); return isNaN(v) ? d : Math.min(hi, Math.max(lo, v)); };
+  settings = {
+    focus: clamp($('setFocus').value, 1, 120, 25),
+    short: clamp($('setShort').value, 1, 60, 5),
+    long: clamp($('setLong').value, 1, 60, 15),
+    interval: clamp($('setInterval').value, 2, 10, 4),
+    auto: $('setAuto').checked,
+    sound: $('setSound').checked
+  };
+  store.set('settings', settings);
+  closeSettings();
+  if (!running) setMode(mode); else render();
+  toast('設定已儲存');
+};
+
+/* ========== 事件綁定 ========== */
+$('startBtn').onclick = toggle;
+$('resetBtn').onclick = reset;
+$('skipBtn').onclick = skip;
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
+  if (b.dataset.mode === mode) return;
+  if (running && !confirm('計時進行中，確定要切換嗎？')) return;
+  setMode(b.dataset.mode);
+});
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, select, textarea') || $('modalBg').classList.contains('open')) {
+    if (e.key === 'Escape') closeSettings();
+    return;
+  }
+  if (e.code === 'Space') { e.preventDefault(); toggle(); }
+  else if (e.key === 'r' || e.key === 'R') reset();
+  else if (e.key === 's' || e.key === 'S') skip();
+  else if (e.key === 'm' || e.key === 'M') toggleMusic();
+});
+window.addEventListener('beforeunload', e => { if (running && mode === 'focus') { e.preventDefault(); e.returnValue = ''; } });
+
+/* ========== 背景音樂（YouTube IFrame Player API） ========== */
+const DEFAULT_SONGS = [
+  { title: 'IVE - ELEVEN', id: '--FmExEAsM8' },
+  { title: 'IVE - LOVE DIVE', id: 'Y8JFxS1HlDo' },
+  { title: 'IVE - After LIKE', id: 'F0B7HDiY-10' },
+  { title: 'IVE - I AM', id: '6ZUIwj3FgUY' },
+  { title: 'IVE - Kitsch', id: 'pG6iaDGPA1o' }
+];
+let songs = store.get('songs', DEFAULT_SONGS);
+let songIndex = -1;           // 目前播放第幾首
+let ytPlayer = null, ytReady = false, musicPlaying = false, errorStreak = 0;
+let musicAuto = store.get('musicAuto', true);
+let volume = store.get('volume', 50);
+$('musicAuto').checked = musicAuto;
+$('volume').value = volume;
+
+function parseYouTubeId(text) {
+  text = text.trim();
+  if (/^[\w-]{11}$/.test(text)) return text;
+  const m = text.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+
+function renderSongs() {
+  const ul = $('songList'); ul.innerHTML = '';
+  if (!songs.length) { ul.innerHTML = '<li class="empty" style="width:100%">歌單是空的，貼上 YouTube 連結加歌吧！</li>'; }
+  songs.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.className = 'song' + (i === songIndex ? ' playing' : '') + (s.error ? ' error' : '');
+    li.innerHTML = '<span></span><button title="移除">✕</button>';
+    li.querySelector('span').textContent = (i === songIndex && musicPlaying ? '♪ ' : '') + s.title;
+    li.onclick = e => {
+      if (e.target.tagName === 'BUTTON') {
+        songs.splice(i, 1);
+        if (i === songIndex) { stopMusic(); songIndex = -1; } else if (i < songIndex) songIndex--;
+        saveSongs(); return;
+      }
+      playSong(i);
+    };
+    ul.appendChild(li);
+  });
+  const cur = songs[songIndex];
+  $('nowPlaying').innerHTML = cur ? (musicPlaying ? '正在播放：' : '已暫停：') + '<b></b>' : '尚未播放';
+  if (cur) $('nowPlaying').querySelector('b').textContent = cur.title;
+  $('playSong').textContent = musicPlaying ? '⏸' : '▶';
+}
+function saveSongs() { store.set('songs', songs.map(({ title, id }) => ({ title, id }))); renderSongs(); }
+
+// YouTube API 載入完成時會自動呼叫這個函式
+window.onYouTubeIframeAPIReady = function () {
+  ytPlayer = new YT.Player('ytPlayer', {
+    width: '100%', height: '100%',
+    playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+    events: {
+      onReady: () => { ytReady = true; ytPlayer.setVolume(volume); },
+      onStateChange: e => {
+        if (e.data === YT.PlayerState.PLAYING) {
+          musicPlaying = true; errorStreak = 0;
+          songs[songIndex] && (songs[songIndex].error = false);
+          // 用自訂連結加入的歌，播放後自動抓影片標題
+          const t = ytPlayer.getVideoData && ytPlayer.getVideoData().title;
+          if (t && songs[songIndex] && songs[songIndex].title.startsWith('自訂歌曲')) { songs[songIndex].title = t; saveSongs(); }
+        } else if (e.data === YT.PlayerState.PAUSED) {
+          musicPlaying = false;
+        } else if (e.data === YT.PlayerState.ENDED) {
+          musicPlaying = false; nextSong();   // 播完自動下一首（整個歌單循環）
+        }
+        renderSongs();
+      },
+      onError: () => {
+        // 影片不存在或不允許嵌入 → 標記並跳下一首（避免全部失敗時無限循環）
+        if (songs[songIndex]) songs[songIndex].error = true;
+        errorStreak++;
+        toast('⚠️ 這首無法在網頁中播放，自動換下一首');
+        if (errorStreak < songs.length) nextSong(); else { musicPlaying = false; toast('歌單中的影片都無法播放，請貼上其他 YouTube 連結'); }
+        renderSongs();
+      }
+    }
+  });
+};
+
+function playSong(i) {
+  if (!songs.length) return toast('歌單是空的，先加入歌曲吧！');
+  if (!ytReady) return toast('音樂播放器載入中，請稍候（需要網路）');
+  songIndex = (i + songs.length) % songs.length;
+  $('videoPlaceholder').style.display = 'none';
+  ytPlayer.loadVideoById(songs[songIndex].id);
+  musicPlaying = true;
+  renderSongs();
+}
+function nextSong() { playSong(songIndex + 1); }
+function prevSong() { playSong(songIndex - 1); }
+function stopMusic() { if (ytReady && musicPlaying) ytPlayer.pauseVideo(); musicPlaying = false; renderSongs(); }
+function resumeMusic() {
+  if (!ytReady || !songs.length) return;
+  if (songIndex < 0) playSong(0); else { ytPlayer.playVideo(); musicPlaying = true; renderSongs(); }
+}
+function toggleMusic() { musicPlaying ? stopMusic() : resumeMusic(); }
+
+// 和番茄鐘連動：專注計時中 → 播放；暫停或休息 → 停止
+function syncMusic() {
+  if (!musicAuto || !ytReady) return;
+  if (running && mode === 'focus') { if (!musicPlaying) resumeMusic(); }
+  else if (musicPlaying) stopMusic();
+}
+
+$('playSong').onclick = toggleMusic;
+$('nextSong').onclick = nextSong;
+$('prevSong').onclick = prevSong;
+$('volume').oninput = e => { volume = +e.target.value; store.set('volume', volume); if (ytReady) ytPlayer.setVolume(volume); };
+$('musicAuto').onchange = e => { musicAuto = e.target.checked; store.set('musicAuto', musicAuto); syncMusic(); };
+$('addSong').onsubmit = e => {
+  e.preventDefault();
+  const id = parseYouTubeId($('songInput').value);
+  if (!id) return toast('看不懂這個連結，請貼上 YouTube 影片網址');
+  if (songs.some(s => s.id === id)) return toast('這首已經在歌單裡了');
+  songs.push({ title: '自訂歌曲 ' + (songs.length + 1), id });
+  $('songInput').value = '';
+  saveSongs();
+  toast('🎵 已加入歌單');
+};
+$('resetSongs').onclick = () => {
+  if (!confirm('要恢復成預設的 IVE 歌單嗎？')) return;
+  stopMusic(); songIndex = -1; songs = DEFAULT_SONGS.map(s => ({ ...s })); saveSongs();
+};
+
+// 載入 YouTube API
+(function () {
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  s.onerror = () => toast('無法連到 YouTube，背景音樂暫時不能使用');
+  document.head.appendChild(s);
+})();
+
+/* ========== 初始化 ========== */
+renderSongs();
+setMode('focus');
+renderTodos();
+renderStats();
+</script>
+</body>
+</html>
